@@ -14,17 +14,14 @@ bool check_prime(uint32_t n) {
     bool check = true;
 
     for (uint32_t i = 2; i <= sqrt(n); i++) {
-        if (n % i == 0) {
+        if (n % i == 0 && check != false) {
             check = false;
-            break;
         }
     }
 
     if (check == true && n != 1) {
-        //Serial.println("prime");
         return true;
     } else {
-        //Serial.println("not prime");
         return false;
     }
 
@@ -120,7 +117,6 @@ unsigned int find_gcd(uint32_t pub_key, uint32_t phi)
         phi = tmp;
     }
 
-    Serial.println(pub_key);
     return pub_key;
 }
 
@@ -137,6 +133,48 @@ uint32_t get_public_key(uint32_t phi_value) {
 
 }
 
+uint32_t get_private_key(uint32_t pub_key, uint32_t phi_value, uint32_t myArd_mod) {
+	int32_t r[40], s[40], t[40];
+	int32_t q, x, i;
+	uint32_t return_value;
+	r[0] = pub_key;
+	s[0] = 1;
+	t[0] = 0;
+	r[1] = phi_value;
+	s[1] = 0;
+	t[1] = 1;
+
+	i = 1;
+
+	while (r[i] > 0) {
+		q = r[i-1]/r[i];
+		r[i+1] = r[i-1] - q*r[i];
+		s[i+1] = s[i-1] - q*s[i];
+		t[i+1] = t[i-1] - q*t[i];
+		i = i+1;
+	}
+
+	x = s[i-1];
+
+	if (x < 0) {
+		//Serial.println("x < 0");
+		uint32_t z = (((-1 * x) / phi_value) + 1);
+		return_value = ((x + (z*phi_value)) % phi_value);
+		if (return_value < 0 || return_value >= phi_value) {
+			Serial.println("Private_key domain error");
+		}
+		return return_value;
+	} else {
+		//Serial.println("x >= 0");
+		return_value = (x % phi_value);
+		if (return_value < 0 || return_value >= phi_value) {
+			Serial.println("Private_key domain error");
+		}
+		return return_value;
+	}
+
+} 
+
 int main() {
 	setup();
 	uint32_t p_value = 0;
@@ -148,32 +186,51 @@ int main() {
 	int p_k = 14;
 	int q_k = 15;
 
-	//for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < 30; i++) {
 	p_value = get_p_val(p_k);
-	Serial.print("p value = ");
-	Serial.println(p_value);
+	//Serial.print("p value = ");
+	//Serial.println(p_value);
 
 	q_value = get_q_val(q_k);
-	Serial.print("q value = ");
-	Serial.println(q_value);
+	//Serial.print("q value = ");
+	//Serial.println(q_value);
 
 	myArd_mod = get_ard_mod(p_value, q_value);
 	Serial.print("This arduino's mod: ");
 	Serial.println(myArd_mod);
 
 	phi_value = get_phi(p_value, q_value);
-	Serial.print("Phi value: ");
-	Serial.println(phi_value);
+	//Serial.print("Phi value: ");
+	//Serial.println(phi_value);
 
 	public_key = get_public_key(phi_value);
 	Serial.print("Public key: ");
 	Serial.println(public_key);
 
-	private_key = get_private_key(pub_key)
+	private_key = get_private_key(public_key, phi_value, myArd_mod);
 	Serial.print("Private key: ");
 	Serial.println(private_key);
 
 	Serial.flush();
+
+	if (p_value < pow(2,14) || (p_value >= pow(2,15))) {
+		Serial.println("p_value error");
+	}
+
+	if (q_value < pow(2,15) || (p_value >= pow(2,16))) {
+		Serial.println("q_value error");
+	}
+
+	if (myArd_mod < pow(2,29) || (myArd_mod >= pow(2,31))) {
+		Serial.println("mod_value error");
+	}
+
+	if (public_key <= 1 || public_key >= phi_value) {
+		Serial.println("public_key not domain");
+	}
+
+	//Serial.println(" ");
+	}
 
 	return 0;
 }
