@@ -11,7 +11,9 @@ enum ConnectionState {
 void setup() {
 	init();
 	Serial.begin(9600);
+	Serial3.begin(9600);
 	pinMode(analogpin, INPUT);
+	pinMode(config_pin, INPUT);
 }
 
 
@@ -20,14 +22,16 @@ bool display_arduino_type()
     bool server;
 
     if (digitalRead(config_pin) == HIGH) {
-        bool server = true;
+        //bool server = true;
+        return true;
         Serial.println("Server Arduino");
     }
     else {
-        bool server = false;
+        //bool server = false;
+        return false;
         Serial.println("Client Arduino");
     }
-    Serial.flush();
+    //Serial.flush();
     return server;
 }
 
@@ -306,7 +310,7 @@ uint32_t uint32_from_serial3()
 */
 void server_arduino(uint32_t d, uint32_t n, uint32_t e, uint32_t m)
 {
-	Serial.println('hello we in server_arduino');
+	//Serial.println('hello we in server_arduino');
     // if there is a byte to read, read it and send to Arduino B
     //uint32_t d = ServerPrivateKey;
     //uint32_t n = ServerModulus;
@@ -396,6 +400,12 @@ int main() {
 	setup();
 	bool server;
     server = display_arduino_type();// server = true then arudino is server else vice versa
+    if(server==true){
+    	Serial.println("is tru");
+    }else{
+    	Serial.println("is fals");
+    }
+    //Serial.println(server);
 	uint32_t p_value = 0;
 	uint32_t q_value = 0;
 	uint32_t myArd_mod = 0;
@@ -453,38 +463,47 @@ int main() {
 	
 	
 
-
+	Serial.println(server);
 	// code for server arduino
 	if(server==true){
+		Serial.println("In server==true");
 		// sets initial state
 		ConnectionState state = LISTEN;
 
 		while(state!=DATAEXCHANGE){
 			if(state==LISTEN){
-				if(Serial3.read()=="C"){
+				//Serial.println("Inside state==LISTEN");
+				//char data = Serial3.read(); date=='C'
+				//Serial.println(Serial3.read());
+				if(Serial3.read()==67){// Serial3.read() reads int int ascii value
 					state=WAITINGFORKEY;
+					Serial.println("in LISTEN state");
 				}
 			}else if(state==WAITINGFORKEY){
+				Serial.println("in WAITINGFORKEY state");
 				if( wait_on_serial3(8,1000) ){
 					//skey and smod are what we recive from other arduino
 					s_array[0] = uint32_from_serial3();
 					s_array[1] = uint32_from_serial3();
 
 					// acknowledge and send this arduinos public key/mod to other arduino
-					Serial3.print(65);
+					Serial3.write('A');
 					uint32_to_serial3(public_key);
 					uint32_to_serial3(myArd_mod);
-
+					state=WAITINGFORACK;// added in
 				}else{
 					//timeout return to LISTEN state
 					state=LISTEN;
 				}
 			}else if(state==WAITINGFORACK){
+				Serial.println("in WAITINGFORACK state");
 				if(wait_on_serial3(1,1000)){
-					if(Serial3.read()=="A"){
+					if(Serial3.read()==65){
 						state=DATAEXCHANGE;
+						Serial.println('now at dataexchange');
+						Serial.flush();
 						
-					}else if(Serial3.read()=="C"){
+					}else if(Serial3.read()==67){
 						state=WAITINGFORKEY;
 					}
 				}else{
@@ -494,14 +513,17 @@ int main() {
 		}// end of while loop
 
 	//code for client arduino
+	Serial.println('handshake complete for server');
 	}else{
 		// sets inital state
 		ConnectionState state = START;
 
 		while(state!=DATAEXCHANGE){// state!=dataexchange
 			if(state == START){
+				Serial.println("in START state");
+				//Serial.write(67);
 				// send connection request CR(ckey,mod) 9 bytes
-				Serial3.print(67);
+				Serial3.write(67);//write('C')
 				uint32_to_serial3(public_key);
 				uint32_to_serial3(myArd_mod);
 
@@ -509,14 +531,15 @@ int main() {
 				state=WAITINGFORACK;
 
 			}else if(state== WAITINGFORACK){
+				Serial.println("in WAITINGFORACK state");
 				if( wait_on_serial3(9,1000) ){
-					if(Serial3.read()=="A"){
+					if(Serial3.read()==65){
 						// store skey, smod
 						s_array[0] = uint32_from_serial3();
 						s_array[1] = uint32_from_serial3();
 
 						// send acknowledge to server
-						Serial3.print(65);
+						Serial3.write('A');
 						state = DATAEXCHANGE;
 
 
@@ -535,6 +558,7 @@ int main() {
 
 	Serial.println("before infinte while loop");// not reaching here
 	//now run infinte while loop so arduinos can communicate
+	/*
 	while (true) {
         if (server == true) {
             server_arduino(private_key, myArd_mod, s_array[0], s_array[1]);
@@ -543,7 +567,8 @@ int main() {
             client_arduino(private_key, myArd_mod, s_array[0], s_array[1]);
         }
     }
-
+	*/
+	delay(1000);
 	return 0;
 }
 
