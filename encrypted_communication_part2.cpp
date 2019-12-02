@@ -4,7 +4,7 @@
 const int analogpin = 1;
 const int config_pin = 13;
 enum ConnectionState {
-  	START, WAITINGFORACK, DATAEXCHANGE, LISTEN, WAITINGFORKEY
+  	START, WAITINGFORACK, DATAEXCHANGE, LISTEN, WAITINGFORKEY, WAITINGFORKEY2
 };
 
 
@@ -500,20 +500,32 @@ int main() {
 				if(wait_on_serial3(1,1000)){
 					if(Serial3.read()==65){
 						state=DATAEXCHANGE;
-						Serial.println('now at dataexchange');
-						Serial.flush();
+						//Serial.println('now at dataexchange');
+						//Serial.flush();
 						
 					}else if(Serial3.read()==67){
-						state=WAITINGFORKEY;
+						state=WAITINGFORKEY2;
 					}
 				}else{
+					state=LISTEN;
+				}
+			}else if(state==WAITINGFORKEY2){
+				if( wait_on_serial3(8,1000) ){
+					//skey and smod are what we recive from other arduino
+					s_array[0] = uint32_from_serial3();
+					s_array[1] = uint32_from_serial3();
+
+					// acknowledge and send this arduinos public key/mod to other arduino
+					state=WAITINGFORACK;
+				}else{
+					//timeout return to LISTEN state
 					state=LISTEN;
 				}
 			}
 		}// end of while loop
 
 	//code for client arduino
-	Serial.println('handshake complete for server');
+	//Serial.println('handshake complete for server');
 	}else{
 		// sets inital state
 		ConnectionState state = START;
@@ -523,7 +535,7 @@ int main() {
 				Serial.println("in START state");
 				//Serial.write(67);
 				// send connection request CR(ckey,mod) 9 bytes
-				Serial3.write(67);//write('C')
+				Serial3.write('C');//write('C')
 				uint32_to_serial3(public_key);
 				uint32_to_serial3(myArd_mod);
 
@@ -558,7 +570,7 @@ int main() {
 
 	Serial.println("before infinte while loop");// not reaching here
 	//now run infinte while loop so arduinos can communicate
-	/*
+	
 	while (true) {
         if (server == true) {
             server_arduino(private_key, myArd_mod, s_array[0], s_array[1]);
@@ -567,7 +579,7 @@ int main() {
             client_arduino(private_key, myArd_mod, s_array[0], s_array[1]);
         }
     }
-	*/
+	
 	delay(1000);
 	return 0;
 }
