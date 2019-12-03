@@ -1,22 +1,35 @@
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Name = Mattheas Jamieson, Jenish Patel
+// Student ID: 1601689 , 1572027
+// CMPUT 274, FALL 2019
+// Major Assignment: Encryption Communication Part 2
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #include <Arduino.h>
 #include <math.h>
 
+// Constants and state defintion.
 const int analogpin = 1;
 const int serverPin = 13;
 enum ConnectionState {
   	START, WAITINGFORACK, DATAEXCHANGE, LISTEN, WAITINGFORKEY, WAITINGFORKEY2
 };
 
-
+// Setups up serial communication and INPUT pins.
 void setup() {
 	init();
 	Serial.begin(9600);
 	Serial3.begin(9600);
 	pinMode(analogpin, INPUT);
 	pinMode(serverPin, INPUT);
-}// end of setup()
+}
 
+/*
+	Description:
+	Checks if number n is a prime number. Code adopted from
+	morning problem PRIMALITY.
 
+	Return: true is prime, else false
+*/
 bool check_prime(uint32_t n) {
     bool check = true;
 
@@ -33,14 +46,26 @@ bool check_prime(uint32_t n) {
     }
 
     return 0;
-}// end of check_prime()
+}
 
+/*
+	Description:
+	Generates a random number between a specified domain. Using voltage readings
+	from analog pin 1 the function will generate a n bit integer.
 
+	Return uint32_t randonNumber
+*/
 uint32_t generate_random_number(int n) {
 	int voltageReading;
 	int recordLSB = 0;
 	uint32_t randomNumber = 0;
 	
+	/* Iterates n number of times and reads in the voltage
+	   from the analog pin. Using mod 2, the lowest signficant
+	   bit is computed and if it is 0 the random number is pushed
+	   left by one bit, and if the LSB is 1, then the random
+	   number is added by 1 and pushed to the left.
+	*/
 	for (int i = 0; i < n; i++) {
 		voltageReading = analogRead(analogpin);
 		recordLSB = voltageReading % 2;
@@ -63,9 +88,17 @@ uint32_t generate_random_number(int n) {
 		generate_random_number(n);
 	}
 
-}// end of generate_random_number()
+}
 
+/*
+	Description:
+	Generates a number between [2^14,2^15) using generate_random_number()
+	and then checks if that is prime. If the q_value is not prime then it
+	keeps generating new random numbers.
 
+	Return:
+	- uint32_t p_value
+*/
 uint32_t get_p_val(int p_k) {
 	uint32_t p_value;
 
@@ -80,9 +113,17 @@ uint32_t get_p_val(int p_k) {
 	}
 
 	return p_value;
-}// end of get_p_val()
+}
 
+/*
+	Description:
+	Generates a number between [2^15,2^16) using generate_random_number()
+	and then checks if that is prime. If the q_value is not prime then it
+	keeps generating new random numbers.
 
+	Return:
+	- uint32_t q_value
+*/
 uint32_t get_q_val(int q_k) {
 	uint32_t q_value;
 
@@ -97,25 +138,46 @@ uint32_t get_q_val(int q_k) {
 	}
 
 	return q_value;
-}// end of get_q_val()
+}
 
+/*
+	Description:
+	Calculates the modulus value using mod = p*q
 
+	Return:
+	- uint32_t mod.
+*/
 uint32_t get_ard_mod(uint32_t p_value, uint32_t q_value) {
 	uint32_t mod = (p_value * q_value);
 
 	return mod;
-}// end of get_ard_mod()
+}
 
+/*
+	Description:
+	Calculates the phi value using totient formula
 
+	Return:
+	- uint32_t phi
+*/
 uint32_t get_phi(uint32_t p_value, uint32_t q_value) {
 	uint32_t phi;
+
 	phi = (p_value - 1) * (q_value - 1);
 
 	return phi;
-}// end of get_phi()
+}
 
+/*
+	Description:
+	Finds the greatest common divisor between two integers. The code was
+	adopted from GCD_TEST.CPP file upload on ECLASS.
 
-unsigned int find_gcd(uint32_t pub_key, uint32_t phi){	
+	Returns:
+	- uint32_t invalidated pub_key
+*/
+uint32_t find_gcd(uint32_t pub_key, uint32_t phi)
+{	
     while (phi > 0) {
         pub_key %= phi;
         // now swap them
@@ -125,26 +187,49 @@ unsigned int find_gcd(uint32_t pub_key, uint32_t phi){
     }
 
     return pub_key;
-}// end of find_gcd()
+}
 
+/*
+	Description:
+	To find the public key. The function generates a random number using the
+	generat_random_numer function. Then it checks if the random number has a
+	greatest common divisor of 1 with the phi_value.
 
+	Return:
+		- uint32_t public key
+*/
 uint32_t get_public_key(uint32_t phi_value) {
 	uint32_t pub_key = 0;
 	uint32_t n = 0;
 
+	// Until a valid public is not found new random numbers is generated and tested.
 	while (n != 1) {
 		pub_key = generate_random_number(15);
 		n = find_gcd(pub_key, phi_value);
 	}
 
 	return pub_key;
-}// end of get_public_key()
+}
 
+/*
+	Description:
+	To find the private key, the function uses the euclidean extended algorithm that
+	also handles negative and overflow outputs. With the help of the pseudocode from
+	ECLASS (CMPUT 274 - ARDUINO - RSA KEY GENERATION) slides the code below was
+	implemented. And in order to handle negative values we adopted the idea from the
+	euclidean extended alogrithm worksheet.
 
+	Return:
+		- if x is positive and in range (o < x < phi(n)) then return x%phi(n) (also just x)
+		- if x is negative then a few operations are done and the value is returned.
+*/
 uint32_t get_private_key(uint32_t pub_key, uint32_t phi_value, uint32_t myArd_mod) {
+	// Initialize variables
 	int32_t r[40], s[40], t[40];
 	int32_t q, x, i;
 	uint32_t return_value;
+
+	// Initialize array index has mentioned in the slides
 	r[0] = pub_key;
 	s[0] = 1;
 	t[0] = 0;
@@ -152,8 +237,8 @@ uint32_t get_private_key(uint32_t pub_key, uint32_t phi_value, uint32_t myArd_mo
 	s[1] = 0;
 	t[1] = 1;
 
+	// Runs the EEA.
 	i = 1;
-
 	while (r[i] > 0) {
 		q = r[i-1]/r[i];
 		r[i+1] = r[i-1] - q*r[i];
@@ -165,25 +250,15 @@ uint32_t get_private_key(uint32_t pub_key, uint32_t phi_value, uint32_t myArd_mo
 	x = s[i-1];
 
 	if (x < 0) {
-		//Serial.println("x < 0");
 		uint32_t z = (((-1 * x) / phi_value) + 1);
 		return_value = ((x + (z*phi_value)) % phi_value);
-		if (return_value < 0 || return_value >= phi_value) {
-			Serial.println("Private_key domain error");
-		}
 		return return_value;
 	} else {
-		//Serial.println("x >= 0");
 		return_value = (x % phi_value);
-		if (return_value < 0 || return_value >= phi_value) {
-			Serial.println("Private_key domain error");
-		}
 		return return_value;
 	}
 
-}// end of get_private_key()
-
-
+} 
 
 //#################################### PART 1 ##########################################################################// 
 
@@ -193,7 +268,7 @@ bool isServer() {
     } else {
         return false;
     }
-}// end of isServer()
+}
 
 /*
     Compute and return (a*b)%m
@@ -221,7 +296,7 @@ uint32_t multMod(uint32_t a, uint32_t b, uint32_t m) {
     }
 
     return result;
-}// end of multMod()
+}
 
 
 /*
@@ -246,7 +321,7 @@ uint32_t powMod(uint32_t a, uint32_t b, uint32_t m) {
     }
 
     return result;
-}// end of powMod()
+}
 
 
 
@@ -258,7 +333,7 @@ void uint32_to_serial3(uint32_t num) {
     Serial3.write((char) (num >> 8));
     Serial3.write((char) (num >> 16));
     Serial3.write((char) (num >> 24));
-}// end of uint32_to_serial3()
+}
 
 
 /** Reads an uint32_t from Serial3, starting from the least-significant
@@ -271,7 +346,7 @@ uint32_t uint32_from_serial3() {
     num = num | ((uint32_t) Serial3.read()) << 16;
     num = num | ((uint32_t) Serial3.read()) << 24;
     return num;
-}// end of uint32_from_serial3()
+}
 
 
 /*
@@ -287,7 +362,7 @@ uint32_t uint32_from_serial3() {
 */
 uint32_t encrypt(char c, uint32_t e, uint32_t m) {
     return powMod(c, e, m);
-}// end of encrypt()
+}
 
 
 /*
@@ -303,7 +378,7 @@ uint32_t encrypt(char c, uint32_t e, uint32_t m) {
 */
 char decrypt(uint32_t x, uint32_t d, uint32_t n) {
     return (char) powMod(x, d, n);
-}// end of decrypt()
+}
 
 /*
     Core communication loop
@@ -341,8 +416,7 @@ void communication(uint32_t d, uint32_t n, uint32_t e, uint32_t m) {
             }
         }
     }
-}// end of communication()
-
+}
 
 bool wait_on_serial3( uint8_t nbytes, long timeout){
 	unsigned long deadline = millis() + timeout;// wraparound not a problem
@@ -351,10 +425,7 @@ bool wait_on_serial3( uint8_t nbytes, long timeout){
 	}
 
 	return Serial3.available()>=nbytes;
-}// end of wait_on_serial3()
-
-
-
+}
 
 
 //################################################################ END ############################################################//
